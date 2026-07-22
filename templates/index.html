@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>OpenMV RT1062 控制台</title>
+<style>
+body { font-family: 'Segoe UI', Arial, sans-serif; text-align: center; padding: 30px; background: #1a1a2e; color: #eee; margin: 0; }
+h1 { color: #e94560; font-weight: 300; letter-spacing: 2px; }
+.container { max-width: 800px; margin: 0 auto; }
+.controls { margin: 30px 0; display: flex; gap: 20px; justify-content: center; }
+button { font-size: 20px; padding: 15px 50px; border: none; border-radius: 8px; cursor: pointer; transition: all .2s; font-weight: 600; }
+.btn-on { background: #0f3460; color: #fff; }
+.btn-on:hover { background: #16213e; transform: scale(1.05); }
+.btn-on:active { background: #0a1628; }
+.btn-off { background: #533483; color: #fff; }
+.btn-off:hover { background: #3d1f6e; transform: scale(1.05); }
+.btn-off:active { background: #2a144f; }
+.btn-on.active { background: #e94560; box-shadow: 0 0 20px #e94560; }
+#status { font-size: 18px; margin: 15px 0; color: #aaa; }
+#video { width: 100%; max-width: 640px; border: 3px solid #0f3460; border-radius: 12px; margin-top: 20px; }
+.ip { color: #888; font-size: 14px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>OpenMV RT1062</h1>
+<div class="controls">
+<button id="btnOn" class="btn-on" onclick="led('on')">LED ON</button>
+<button id="btnOff" class="btn-off" onclick="led('off')">LED OFF</button>
+</div>
+<div id="status">就緒</div>
+<img id="video" src="/video_feed" alt="Camera Feed">
+    <div class="ip">開發板 WiFi (192.168.1.200) · PC 代理伺服器 · MJPEG 串流</div>
+</div>
+<script>
+async function led(state) {
+    const status = document.getElementById('status');
+    const btn = document.getElementById('btn' + (state === 'on' ? 'On' : 'Off'));
+    status.textContent = 'LED ' + state.toUpperCase() + ' ...';
+    btn.classList.add('active');
+    try {
+        const resp = await fetch('/api/led/' + state, { method: 'POST' });
+        const data = await resp.json();
+        status.textContent = 'LED ' + state.toUpperCase() + ' (' + data.status + ')';
+    } catch(e) {
+        status.textContent = '錯誤: ' + e.message;
+    }
+    setTimeout(() => btn.classList.remove('active'), 300);
+}
+</script>
+</body>
+</html>

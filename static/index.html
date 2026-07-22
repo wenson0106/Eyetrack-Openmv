@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>OpenMV 小車眼動與遙控介面</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css?v=car" />
+</head>
+<body>
+
+  <!-- 1. 溫馨提示與 Webcam 設定頁面 (隱式校準第 1 階段) -->
+  <div id="welcome-screen" class="welcome-overlay">
+    <div class="welcome-card">
+      <div class="welcome-header">
+        <h2>智能眼動控制小車系統</h2>
+        <p class="subtitle">助理教學演示 - 網絡 APIs 與人機介面開發</p>
+      </div>
+
+      <div class="welcome-body">
+        <!-- 溫馨提示區 -->
+        <div class="welcome-info-box" id="tip-box">
+          <button id="btn-close-tip" class="stealth-close" title="關閉提示">×</button>
+          <h3>💡 溫馨提示</h3>
+          <p>本系統將使用您的<strong>筆電視訊鏡頭（WebCam）</strong>來實現實時眼部追蹤，進而控制 OpenMV 小車相機雲台。請在瀏覽器彈出提示時允許攝影機存取權限。</p>
+          <p class="hint">註：本網頁完全在本地運算，影像資料不會上傳至伺服器外。</p>
+        </div>
+
+        <!-- Google Meet 風格的 Webcam 設定與預覽 -->
+        <div class="webcam-config-panel">
+          <div class="webcam-preview-container">
+            <video id="webcam-preview" autoplay playsinline muted></video>
+            <canvas id="capture-canvas" width="640" height="480" hidden></canvas>
+            <div class="webcam-preview-overlay">
+              <span>攝影機預覽畫面</span>
+            </div>
+          </div>
+          <div class="webcam-controls">
+            <label for="camera-select">選擇輸入裝置：</label>
+            <select id="camera-select" class="custom-select">
+              <option value="">正在載入攝影機...</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="welcome-footer">
+        <button id="btn-enter-system" class="btn-primary-glow" disabled>進入操控介面</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 主操控畫面 (隱式校準第 2 階段 + 小車遙控) -->
+  <div id="main-container" class="main-layout hidden">
+    
+    <!-- 中央主畫面：OpenMV 影像串流與左右控制區 -->
+    <div class="central-view">
+      <img id="openmv-feed" src="/video_feed" alt="OpenMV 影像串流" />
+      <div id="feed-fallback" class="feed-placeholder">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        <span>正在等待開發板影像串流 (192.168.50.200) ...</span>
+      </div>
+
+      <!-- 曝光聚焦中心標記 (注視 3 秒對焦) -->
+      <div id="focus-reticle" class="focus-marker hidden"></div>
+
+      <!-- 左側眼動觸發區域 (15% 寬度) -->
+      <div id="left-trigger-zone" class="gaze-zone left">
+        <div class="zone-overlay-text">左看鏡頭左轉</div>
+      </div>
+
+      <!-- 右側眼動觸發區域 (15% 寬度) -->
+      <div id="right-trigger-zone" class="gaze-zone right">
+        <div class="zone-overlay-text">右看鏡頭右轉</div>
+      </div>
+    </div>
+
+    <!-- 浮動教學與控制面板 (隱式校準點 3-9) -->
+
+    <!-- [點 3] 左上：眼動設定面板 -->
+    <div id="widget-top-left" class="floating-widget top-left">
+      <button class="widget-close" data-point-idx="2">×</button>
+      <h4>⚙️ 眼動設定</h4>
+      <div class="widget-content">
+        <label class="switch-container">
+          <input type="checkbox" id="chk-show-cursor" checked />
+          <span class="switch-label">顯示眼動游標</span>
+        </label>
+        <label class="switch-container">
+          <input type="checkbox" id="chk-simulate-mouse" />
+          <span class="switch-label">使用滑鼠模擬眼動</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- [點 4] 右上：操作教學說明 -->
+    <div id="widget-top-right" class="floating-widget top-right">
+      <button class="widget-close" data-point-idx="3">×</button>
+      <h4>⌨️ 小車手動操控說明</h4>
+      <div class="widget-content">
+        <p>請使用鍵盤進行移動控制：</p>
+        <ul>
+          <li><strong>W / S</strong> : 前進 / 後退</li>
+          <li><strong>A / D</strong> : 左自轉 / 右自轉</li>
+          <li><strong>Shift (按住)</strong> : 加速衝刺 (0.4 &rarr; 0.8)</li>
+          <li>放開按鍵即自動煞車停止</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- [點 5] 左下：開發板連線狀態 -->
+    <div id="widget-bottom-left" class="floating-widget bottom-left">
+      <button class="widget-close" data-point-idx="4">×</button>
+      <h4>📡 開發板連線狀態</h4>
+      <div class="widget-content status-line">
+        <span class="status-indicator offline" id="board-indicator"></span>
+        <span id="board-status-text">連線檢查中...</span>
+      </div>
+    </div>
+
+    <!-- [點 6] 右下：系統控制日誌 -->
+    <div id="widget-bottom-right" class="floating-widget bottom-right">
+      <button class="widget-close" data-point-idx="5">×</button>
+      <h4>📋 系統控制日誌</h4>
+      <div class="widget-content">
+        <div class="log-console" id="log-box">載入日誌中...</div>
+      </div>
+    </div>
+
+    <!-- [點 7] 左中：左轉觸發提示 -->
+    <div id="widget-mid-left" class="floating-widget mid-left text-bubble">
+      <button class="widget-close" data-point-idx="6">×</button>
+      <div class="bubble-text">💡 提示：注視畫面的<strong>最左側區域</strong>，可直接遙控相機鏡頭向左旋轉。</div>
+    </div>
+
+    <!-- [點 8] 右中：右轉觸發提示 -->
+    <div id="widget-mid-right" class="floating-widget mid-right text-bubble">
+      <button class="widget-close" data-point-idx="7">×</button>
+      <div class="bubble-text">💡 提示：注視畫面的<strong>最右側區域</strong>，可直接遙控相機鏡頭向右旋轉。</div>
+    </div>
+
+    <!-- [點 9] 中央：曝光對焦提示 -->
+    <div id="widget-center" class="floating-widget center-widget text-bubble">
+      <button class="widget-close" data-point-idx="8">×</button>
+      <div class="bubble-text">🎯 提示：盯住畫面任何位置 <strong>3 秒</strong>，可發送 API 要求相機對該區進行自動曝光對焦。</div>
+    </div>
+
+    <!-- 眼動注視點游標 -->
+    <div id="gaze-cursor" class="gaze-dot hidden"></div>
+
+  </div>
+
+  <!-- 3. 校準與同步中遮罩 (隱藏微調時的等待) -->
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <h3 id="loading-title">正在連線至 OpenMV 開發板...</h3>
+      <p id="loading-desc">請稍候，正在同步小車通訊資料與微調模型參數...</p>
+    </div>
+  </div>
+
+  <!-- 連接 JavaScript 控制邏輯 -->
+  <script src="/static/app.js?v=car"></script>
+</body>
+</html>

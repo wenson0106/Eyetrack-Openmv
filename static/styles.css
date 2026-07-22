@@ -1,0 +1,593 @@
+/* Modern Theme Variables & Reset */
+:root {
+  --bg-dark: #0a0a14;
+  --bg-card: rgba(22, 22, 38, 0.7);
+  --bg-card-border: rgba(255, 255, 255, 0.08);
+  --accent-blue: #3b82f6;
+  --accent-purple: #8b5cf6;
+  --accent-glow: rgba(59, 130, 246, 0.4);
+  --text-main: #f3f4f6;
+  --text-muted: #9ca3af;
+  --success: #10b981;
+  --danger: #ef4444;
+  
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --font-display: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  font-family: var(--font-display);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ==========================================================================
+   Welcome Overlay & Setup (Google Meet Style)
+   ========================================================================== */
+.welcome-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: radial-gradient(circle at center, #1b1b36 0%, #06060c 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  transition: opacity 0.5s ease;
+}
+
+.welcome-card {
+  width: 90%;
+  max-width: 800px;
+  background: var(--bg-card);
+  border: 1px solid var(--bg-card-border);
+  backdrop-filter: blur(16px);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.welcome-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+}
+
+.welcome-header .subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.welcome-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.welcome-info-box {
+  position: relative;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.welcome-info-box h3 {
+  font-size: 16px;
+  color: #60a5fa;
+}
+
+.welcome-info-box .hint {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Stealth Close Button */
+.stealth-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  width: 24px;
+  height: 24px;
+  min-height: auto;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.stealth-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* WebCam Setup */
+.webcam-config-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.webcam-preview-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: #11111e;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.webcam-preview-container video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* mirror */
+}
+
+.webcam-preview-overlay {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.webcam-controls label {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  display: block;
+}
+
+.custom-select {
+  width: 100%;
+  background: #161626;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Glowing Buttons */
+.btn-primary-glow {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 0 15px var(--accent-glow);
+  transition: all 0.3s ease;
+}
+
+.btn-primary-glow:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 0 25px var(--accent-glow);
+}
+
+.btn-primary-glow:disabled {
+  background: #333;
+  color: #666;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Main Layout & Control Panel
+   ========================================================================== */
+.main-layout {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--bg-dark);
+}
+
+/* Central view wrapper for video feed */
+.central-view {
+  position: absolute;
+  top: 5%;
+  left: 15%;
+  width: 70%;
+  height: 90%;
+  background: #11111e;
+  border: 2px solid rgba(59, 130, 246, 0.15);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+}
+
+.central-view img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.feed-placeholder {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 14px;
+}
+
+.feed-placeholder svg {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
+/* Exposure Reticle */
+.focus-marker {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border: 2px dashed #60a5fa;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: spin-pulse 2s linear infinite;
+  pointer-events: none;
+  z-index: 10;
+}
+
+@keyframes spin-pulse {
+  0% { transform: translate(-50%, -50%) rotate(0deg) scale(0.9); opacity: 0.8; }
+  50% { transform: translate(-50%, -50%) rotate(180deg) scale(1.1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(360deg) scale(0.9); opacity: 0.8; }
+}
+
+/* Gaze Zones (Transparent Left/Right controls) */
+.gaze-zone {
+  position: absolute;
+  top: 0;
+  width: 15%;
+  height: 100%;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0.0), rgba(255, 255, 255, 0.0));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  cursor: pointer;
+  z-index: 5;
+}
+
+.gaze-zone.left {
+  left: 0;
+  border-right: 1px dashed rgba(255, 255, 255, 0.03);
+}
+
+.gaze-zone.right {
+  right: 0;
+  border-left: 1px dashed rgba(255, 255, 255, 0.03);
+}
+
+.gaze-zone:hover, .gaze-zone.active-gaze {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.gaze-zone.left:hover, .gaze-zone.left.active-gaze {
+  background: linear-gradient(to right, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.0));
+}
+
+.gaze-zone.right:hover, .gaze-zone.right.active-gaze {
+  background: linear-gradient(to left, rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.0));
+}
+
+.zone-overlay-text {
+  color: rgba(255, 255, 255, 0.15);
+  font-size: 16px;
+  font-weight: 500;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  letter-spacing: 4px;
+  transition: color 0.3s;
+}
+
+.gaze-zone:hover .zone-overlay-text, .gaze-zone.active-gaze .zone-overlay-text {
+  color: var(--accent-blue);
+  text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+/* ==========================================================================
+   Floating Widgets (Stealth Calibration Cards)
+   ========================================================================== */
+.floating-widget {
+  position: absolute;
+  background: var(--bg-card);
+  border: 1px solid var(--bg-card-border);
+  backdrop-filter: blur(12px);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.floating-widget h4 {
+  font-size: 13px;
+  color: #60a5fa;
+  margin-bottom: 8px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.floating-widget .widget-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  min-height: auto;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.floating-widget .widget-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* Layout Coordinates for Widgets */
+.top-left {
+  top: 20px;
+  left: 20px;
+  width: 220px;
+}
+
+.top-right {
+  top: 20px;
+  right: 20px;
+  width: 260px;
+}
+
+.bottom-left {
+  bottom: 20px;
+  left: 20px;
+  width: 220px;
+}
+
+.bottom-right {
+  bottom: 20px;
+  right: 20px;
+  width: 260px;
+}
+
+.mid-left {
+  top: 45%;
+  left: 20px;
+  width: 200px;
+}
+
+.mid-right {
+  top: 45%;
+  right: 20px;
+  width: 200px;
+}
+
+.center-widget {
+  top: 45%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+}
+
+/* Widget Content Styles */
+.widget-content {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #d1d5db;
+}
+
+.widget-content ul {
+  padding-left: 16px;
+  margin-top: 6px;
+}
+
+.switch-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  cursor: pointer;
+}
+
+.switch-container input {
+  cursor: pointer;
+}
+
+.switch-label {
+  font-size: 12px;
+}
+
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-indicator.online {
+  background-color: var(--success);
+  box-shadow: 0 0 8px var(--success);
+}
+
+.status-indicator.offline {
+  background-color: var(--danger);
+  box-shadow: 0 0 8px var(--danger);
+}
+
+.log-console {
+  height: 80px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  padding: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  color: #34d399;
+}
+
+.text-bubble {
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: rgba(22, 22, 38, 0.9);
+}
+
+.text-bubble h4 {
+  color: #c084fc;
+}
+
+.bubble-text {
+  font-size: 12px;
+  color: #e9d5ff;
+}
+
+/* Hidden Utility class */
+.hidden {
+  display: none !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Gaze Cursor & UI Indicators
+   ========================================================================== */
+.gaze-dot {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #ef4444;
+  background-color: rgba(239, 68, 68, 0.15);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 9999;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+  transition: width 0.1s, height 0.1s;
+}
+
+.gaze-dot.active-trigger {
+  width: 30px;
+  height: 30px;
+  border-color: #3b82f6;
+  background-color: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.8);
+}
+
+/* ==========================================================================
+   Loading & Sync Overlay
+   ========================================================================== */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(10, 10, 20, 0.85);
+  backdrop-filter: blur(12px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+}
+
+.loading-box {
+  background: var(--bg-card);
+  border: 1px solid var(--bg-card-border);
+  padding: 30px 50px;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.loading-box h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #60a5fa;
+}
+
+.loading-box p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  border-top-color: var(--accent-blue);
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

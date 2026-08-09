@@ -11,10 +11,10 @@
 
 ## 兩種安裝方案
 
-| 方案 | 適合情況 | 學生需要準備 |
-| --- | --- | --- |
-| 原生安裝 | 學生需要閱讀與修改電腦端 Python | Git、Python 3.11、約 5 GB 可用空間 |
-| Docker | 希望避開 Python 套件衝突 | Docker Desktop 或 Docker Engine、約 6 GB 可用空間 |
+| 方案 | 學生需要準備 |
+| --- | --- |
+| 原生安裝 | Git、Python 3.11、約 5 GB 可用空間 |
+| Docker | Docker Desktop 或 Docker Engine、約 6 GB 可用空間 |
 
 ## 共通準備
 
@@ -125,11 +125,8 @@ http://127.0.0.1:8000
 ### 原生安裝常見問題
 
 - `No module named ...`：確認執行的是 `.venv` 裡的 Python，不是系統 Python。
-- 找不到 `py -3.11`：安裝 Python 3.11，或將指令改成可用的 `python3.11`。
-- `pip` 安裝失敗：先執行升級 pip 的指令，再重新安裝。
 - macOS webcam 無法使用：到「系統設定 > 隱私權與安全性 > 相機」允許瀏覽器。
 - Windows 防火牆詢問：允許私人網路；若學校網路被標為公用網路，請依課堂指示處理。
-- 無法連上小車：確認電腦與 OpenMV 在同一網段，並先用瀏覽器測試 `http://小車IP/stream`。
 
 ---
 

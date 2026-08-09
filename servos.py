@@ -6,14 +6,16 @@ class Servo:
     A class responsible for controlling servos via the OpenMV board.
     """
 
-    def __init__(self):
+    def __init__(self, logger=None):
         """
         Initialise the servo object and sets the tuning coefficients.
         """
+        self._logger = logger
+
         # Servo tuning coefficients; EDIT these values as required.
         self.pan_angle_corr = 0
-        self.left_zero = 0.05
-        self.right_zero = -0.1
+        self.left_zero = 0.00
+        self.right_zero = 0.00
 
         # Define servo pin names for the servo shield. EDIT these values as required.
         # NOTE: P9/P10 share one FlexPWM submodule (and P10 doubles as the camera
@@ -42,9 +44,22 @@ class Servo:
 
         # Initialise a PWM channel per servo (newer servo shields drive servos
         # directly over GPIO rather than via a PCA9685 I2C chip).
-        self.pan_pwm = PWM(Pin(self.pan_id), freq=self.freq)
+        self._diag("servo_pwm_left_begin", "creating PWM on {}".format(self.left_id))
         self.left_pwm = PWM(Pin(self.left_id), freq=self.freq)
+        self._diag("servo_pwm_left_ok", "PWM on {} created".format(self.left_id))
+        self._diag("servo_pwm_right_begin", "creating PWM on {}".format(self.right_id))
         self.right_pwm = PWM(Pin(self.right_id), freq=self.freq)
+        self._diag("servo_pwm_right_ok", "PWM on {} created".format(self.right_id))
+        self._diag(
+            "servo_pwm_pan_begin",
+            "creating PWM on shared camera frame-sync pin {}".format(self.pan_id),
+        )
+        self.pan_pwm = PWM(Pin(self.pan_id), freq=self.freq)
+        self._diag("servo_pwm_pan_ok", "PWM on {} created".format(self.pan_id))
+
+    def _diag(self, stage, message=""):
+        if self._logger is not None:
+            self._logger(stage, message)
 
     def set_differential_drive(self, speed: float, bias: float) -> None:
         """

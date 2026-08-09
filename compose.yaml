@@ -1,0 +1,13 @@
+services:
+  eyetrack-openmv:
+    image: ghcr.io/wenson0106/eyetrack-openmv:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./runs:/app/runs
+    restart: unless-stopped

@@ -1,4 +1,10 @@
 data/
+runs/
+tmp/
+dist/
+.venv/
+.cache/
+.codex-pptx/
 __pycache__/
 *.pyc
 *.pyo
@@ -9,3 +15,5 @@ __pycache__/
 *~
 .DS_Store
 Thumbs.db
+*.tar
+*.tar.gz

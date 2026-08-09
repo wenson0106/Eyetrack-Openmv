@@ -1,170 +1,270 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant-TW">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>OpenMV 小車眼動與遙控介面</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=car" />
+  <meta name="theme-color" content="#f4f8fb" />
+  <title>OpenMV 眼動控制台</title>
+  <link rel="stylesheet" href="/static/styles.css?v=console-13" />
 </head>
 <body>
-
-  <!-- 1. 溫馨提示與 Webcam 設定頁面 (隱式校準第 1 階段) -->
   <div id="welcome-screen" class="welcome-overlay">
-    <div class="welcome-card">
-      <div class="welcome-header">
-        <h2>智能眼動控制小車系統</h2>
-        <p class="subtitle">助理教學演示 - 網絡 APIs 與人機介面開發</p>
+    <section class="welcome-card" aria-labelledby="welcome-title">
+      <div class="welcome-copy">
+        <p class="eyebrow">OPENMV / EYE CONTROL</p>
+        <h1 id="welcome-title">眼動控制台</h1>
+        <p class="welcome-lede">連接攝影機後即可進入控制畫面。校準資料會在操作期間自然收集。</p>
+
+        <div class="welcome-info-box" id="tip-box">
+          <p class="panel-kicker">開始前準備</p>
+          <h2>確認臉部位於畫面中央</h2>
+          <p>保持正常坐姿，讓 webcam 看得到雙眼。進入控制台後，請先觀察影像與游標反應。</p>
+          <p class="hint">目前只需要確認影像與眼動流程，未連接馬達時不會影響畫面測試。</p>
+          <button id="btn-close-tip" class="acknowledge-button" type="button">我知道了</button>
+        </div>
       </div>
 
-      <div class="welcome-body">
-        <!-- 溫馨提示區 -->
-        <div class="welcome-info-box" id="tip-box">
-          <button id="btn-close-tip" class="stealth-close" title="關閉提示">×</button>
-          <h3>💡 溫馨提示</h3>
-          <p>本系統將使用您的<strong>筆電視訊鏡頭（WebCam）</strong>來實現實時眼部追蹤，進而控制 OpenMV 小車相機雲台。請在瀏覽器彈出提示時允許攝影機存取權限。</p>
-          <p class="hint">註：本網頁完全在本地運算，影像資料不會上傳至伺服器外。</p>
+      <div class="webcam-config-panel">
+        <div class="webcam-preview-container">
+          <video id="webcam-preview" autoplay playsinline muted></video>
+          <canvas id="capture-canvas" width="640" height="480" hidden></canvas>
+          <div class="webcam-preview-overlay">
+            <span class="live-mark" aria-hidden="true"></span>
+            <span>WEBCAM PREVIEW</span>
+          </div>
         </div>
 
-        <!-- Google Meet 風格的 Webcam 設定與預覽 -->
-        <div class="webcam-config-panel">
-          <div class="webcam-preview-container">
-            <video id="webcam-preview" autoplay playsinline muted></video>
-            <canvas id="capture-canvas" width="640" height="480" hidden></canvas>
-            <div class="webcam-preview-overlay">
-              <span>攝影機預覽畫面</span>
+        <div class="webcam-controls">
+          <label for="camera-select">影像來源</label>
+          <select id="camera-select" class="custom-select">
+            <option value="">等待攝影機權限...</option>
+          </select>
+        </div>
+
+        <div class="openmv-ip-controls">
+          <label class="openmv-ip-label" for="openmv-ip">OpenMV 小車 IP</label>
+          <div class="openmv-ip-row">
+            <input id="openmv-ip" class="openmv-ip-input" type="text" inputmode="decimal"
+                   value="192.168.50.200" placeholder="192.168.50.200" autocomplete="off" />
+            <button id="btn-connect-openmv" class="openmv-connect-button" type="button">連線小車</button>
+          </div>
+          <p id="openmv-ip-status" class="control-readout">請輸入小車 IP 後連線</p>
+        </div>
+
+        <div class="welcome-footer">
+          <button id="btn-enter-system" class="btn-primary" type="button" disabled>我知道了</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="main-container" class="main-layout hidden">
+    <main class="console-stage">
+      <span id="log-box" class="sr-only" aria-live="polite">系統初始化中...</span>
+
+      <section id="visual-settings-panel" class="floating-control-panel control-panel-top-left" aria-label="眼動可視化設定">
+        <p class="panel-kicker">眼動可視化設定（預設開啟）</p>
+        <label class="control-switch">
+          <input type="checkbox" id="chk-show-cursor" checked />
+          <span>顯示眼動游標</span>
+        </label>
+        <label class="control-switch">
+          <input type="checkbox" id="chk-simulate-mouse" />
+          <span>滑鼠模擬（測試）</span>
+        </label>
+        <label class="control-switch">
+          <input type="checkbox" id="chk-enable-diagonal" />
+          <span>斜向 4 方向</span>
+        </label>
+        <label class="control-switch">
+          <input type="checkbox" id="chk-enable-shift" />
+          <span>Shift 速度參數</span>
+        </label>
+      </section>
+
+      <section id="keyboard-panel" class="floating-control-panel control-panel-top-right" aria-label="WASD 虛擬鍵盤">
+        <button id="btn-api-reference" class="api-help-button" type="button"
+                aria-label="查看控制 API" aria-haspopup="dialog">?</button>
+        <p class="panel-kicker">操作輸入</p>
+        <h2>WASD 虛擬鍵盤</h2>
+        <div class="virtual-keyboard" aria-label="即時按鍵狀態">
+          <kbd class="virtual-key key-w" data-key="w">W</kbd>
+          <div class="virtual-key-row">
+            <kbd class="virtual-key" data-key="a">A</kbd>
+            <kbd class="virtual-key" data-key="s">S</kbd>
+            <kbd class="virtual-key" data-key="d">D</kbd>
+          </div>
+          <kbd class="virtual-key key-shift" data-key="shift">Shift</kbd>
+        </div>
+        <p id="keyboard-state" class="control-readout">等待鍵盤輸入</p>
+      </section>
+
+      <section class="central-view" aria-label="OpenMV 即時影像">
+        <div class="console-triad">
+          <div id="left-trigger-zone" class="gaze-zone left">
+            <span class="zone-overlay-text">眼動左側</span>
+          </div>
+
+          <div class="feed-canvas">
+            <img id="openmv-feed" src="/video_feed" alt="OpenMV 即時影像" />
+            <div id="feed-fallback" class="feed-placeholder">
+              <strong>等待 OpenMV 影像</strong>
+              <span>請確認板端已連線至 192.168.50.200</span>
+            </div>
+            <div id="focus-reticle" class="focus-marker hidden" aria-hidden="true"></div>
+          </div>
+
+          <div id="right-trigger-zone" class="gaze-zone right">
+            <span class="zone-overlay-text">眼動右側</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="board-status-panel" class="floating-control-panel control-panel-bottom-left" aria-label="OpenMV 連線狀態">
+        <p class="panel-kicker">硬體狀態</p>
+        <div class="status-line">
+          <span class="status-indicator offline" id="board-indicator"></span>
+          <span id="board-status-text" class="status-copy">檢查 OpenMV 連線...</span>
+        </div>
+      </section>
+
+      <section id="angle-panel" class="floating-control-panel angle-panel control-panel-bottom-right" aria-label="車體與鏡頭夾角">
+        <p class="panel-kicker">車體／鏡頭夾角</p>
+        <div class="angle-viewport" aria-hidden="true">
+          <span class="angle-line vehicle-line"></span>
+          <span id="camera-angle-line" class="angle-line camera-line"></span>
+          <span class="angle-origin"></span>
+          <span class="angle-label vehicle-label">車體</span>
+          <span class="angle-label camera-label">鏡頭</span>
+          <span id="angle-value" class="angle-value">0°</span>
+        </div>
+        <p class="control-readout">俯視方向預覽</p>
+      </section>
+
+      <div id="calibration-layer" class="calibration-layer hidden" aria-live="polite">
+        <div class="calibration-scrim" aria-hidden="true"></div>
+
+        <section id="widget-top-left" class="floating-widget calibration-prompt target-top-left hidden">
+          <p class="panel-kicker">眼動可視化設定</p>
+          <h2>眼動可視化設定（預設開啟）</h2>
+          <p class="prompt-copy">設定區固定浮動在左上角，其他畫面會暫時以灰色遮罩降低干擾。</p>
+          <button class="widget-close acknowledge-button" type="button" data-point-idx="3">我知道了</button>
+        </section>
+
+        <section id="widget-top-right" class="floating-widget calibration-prompt target-top-right hidden">
+          <p class="panel-kicker">WASD 虛擬鍵盤</p>
+          <h2>即時顯示按鍵狀態</h2>
+          <div class="shortcut-list">
+            <div><strong>W / S</strong><span>前進 / 後退</span></div>
+            <div><strong>A / D</strong><span>左轉 / 右轉</span></div>
+            <div><strong>Shift</strong><span>加速</span></div>
+          </div>
+          <p class="prompt-copy">按下實體鍵盤時，右上角會即時亮起對應按鍵。</p>
+          <button class="widget-close acknowledge-button" type="button" data-point-idx="4">我知道了</button>
+        </section>
+
+        <section id="widget-bottom-left" class="floating-widget calibration-prompt target-bottom-left hidden">
+          <p class="panel-kicker">硬體狀態</p>
+          <h2>確認 OpenMV 連線</h2>
+          <p class="prompt-copy">連線狀態固定顯示在左下角。尚未收到影像時，中央串流會保留等待提示。</p>
+          <button class="widget-close acknowledge-button" type="button" data-point-idx="5">我知道了</button>
+        </section>
+
+        <section id="widget-bottom-right" class="floating-widget calibration-prompt target-bottom-right hidden">
+          <p class="panel-kicker">車體／鏡頭夾角</p>
+          <h2>確認俯視方向預覽</h2>
+          <p class="prompt-copy">右下角以兩條方向線顯示車體正面與目前鏡頭方向，並同步標出夾角。</p>
+          <button class="widget-close acknowledge-button" type="button" data-point-idx="6">我知道了</button>
+        </section>
+
+        <section id="widget-mid-left" class="floating-widget calibration-prompt text-bubble target-mid-left hidden">
+          <p class="panel-kicker">凝視左側</p>
+          <p class="bubble-text">凝視畫面左側時，攝影機會向左轉動。</p>
+          <button class="widget-close acknowledge-button" type="button" data-point-idx="7">我知道了</button>
+        </section>
+
+        <section id="widget-mid-right" class="floating-widget calibration-prompt text-bubble target-mid-right hidden">
+          <p class="panel-kicker">凝視右側</p>
+          <p class="bubble-text">凝視畫面右側時，攝影機會向右轉動。</p>
+          <button class="widget-close acknowledge-button" type="button" data-point-idx="8">我知道了</button>
+        </section>
+
+        <section id="widget-center" class="floating-widget calibration-prompt text-bubble target-center hidden">
+          <p class="panel-kicker">個人化校準</p>
+          <h2>先完成個人化校準</h2>
+          <p class="bubble-text">這是進入其他提示前的第一個步驟。按下「我知道了」時會立即拍照並記錄目前畫面區域。</p>
+          <button class="widget-close acknowledge-button" type="button" data-point-idx="2">我知道了</button>
+        </section>
+      </div>
+
+      <div id="gaze-cursor" class="gaze-dot hidden" aria-hidden="true"></div>
+    </main>
+  </div>
+
+  <div id="api-reference-modal" class="api-reference-modal hidden" role="dialog"
+       aria-modal="true" aria-labelledby="api-reference-title">
+    <section class="api-reference-card">
+      <header class="api-reference-header">
+        <div>
+          <p class="panel-kicker">CONTROL API</p>
+          <h2 id="api-reference-title">目前啟用的控制 API</h2>
+          <p id="api-reference-summary" class="api-reference-summary"></p>
+        </div>
+        <button id="btn-close-api-reference" class="api-reference-close" type="button"
+                aria-label="關閉 API 說明">關閉</button>
+      </header>
+
+      <div class="api-reference-body">
+        <div id="api-reference-grid" class="api-reference-grid"></div>
+        <div id="api-speed-example" class="api-speed-example hidden">
+          <strong>Shift + W</strong>
+          <code>GET /api/forward?speed=true</code>
+          <span><code>true</code> 只代表「使用加速速度」，實際速度由板端決定。</span>
+          <div class="day4-speed-example">
+            <p><code>day4_wifi.py</code> 可以依照下面三個位置修改：</p>
+
+            <div class="day4-example-step">
+              <strong>設定加速速度 <small>放在區塊 3</small></strong>
+              <pre><code>DRIVE_SPEED = 0.3
+DRIVE_SPEED_UP = 0.6  # 學生自行調整</code></pre>
+            </div>
+
+            <div class="day4-example-step">
+              <strong>讓方向函式使用 speed <small>修改區塊 4</small></strong>
+              <pre><code>def handle_api(path, speed):
+    if path == "/api/forward":
+        servo.set_speed(speed, speed)
+        return "forward"
+
+# backward、left、right 也把 DRIVE_SPEED 改成 speed</code></pre>
+            </div>
+
+            <div class="day4-example-step">
+              <strong>判斷是否按住 Shift <small>修改區塊 5</small></strong>
+              <pre><code>url = request.split(" ")[1]
+path = url.split("?")[0]
+
+speed = DRIVE_SPEED
+if "?speed=true" in url:
+    speed = DRIVE_SPEED_UP
+
+command = handle_api(path, speed)</code></pre>
             </div>
           </div>
-          <div class="webcam-controls">
-            <label for="camera-select">選擇輸入裝置：</label>
-            <select id="camera-select" class="custom-select">
-              <option value="">正在載入攝影機...</option>
-            </select>
-          </div>
         </div>
+        <p class="api-reference-note">這些路徑會由電腦端轉送到 OpenMV。斜向與速度功能需由學員在開發板端完成。</p>
       </div>
-
-      <div class="welcome-footer">
-        <button id="btn-enter-system" class="btn-primary-glow" disabled>進入操控介面</button>
-      </div>
-    </div>
+    </section>
   </div>
 
-  <!-- 2. 主操控畫面 (隱式校準第 2 階段 + 小車遙控) -->
-  <div id="main-container" class="main-layout hidden">
-    
-    <!-- 中央主畫面：OpenMV 影像串流與左右控制區 -->
-    <div class="central-view">
-      <img id="openmv-feed" src="/video_feed" alt="OpenMV 影像串流" />
-      <div id="feed-fallback" class="feed-placeholder">
-        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-          <circle cx="12" cy="13" r="4"/>
-        </svg>
-        <span>正在等待開發板影像串流 (192.168.50.200) ...</span>
-      </div>
-
-      <!-- 曝光聚焦中心標記 (注視 3 秒對焦) -->
-      <div id="focus-reticle" class="focus-marker hidden"></div>
-
-      <!-- 左側眼動觸發區域 (15% 寬度) -->
-      <div id="left-trigger-zone" class="gaze-zone left">
-        <div class="zone-overlay-text">左看鏡頭左轉</div>
-      </div>
-
-      <!-- 右側眼動觸發區域 (15% 寬度) -->
-      <div id="right-trigger-zone" class="gaze-zone right">
-        <div class="zone-overlay-text">右看鏡頭右轉</div>
-      </div>
-    </div>
-
-    <!-- 浮動教學與控制面板 (隱式校準點 3-9) -->
-
-    <!-- [點 3] 左上：眼動設定面板 -->
-    <div id="widget-top-left" class="floating-widget top-left">
-      <button class="widget-close" data-point-idx="2">×</button>
-      <h4>⚙️ 眼動設定</h4>
-      <div class="widget-content">
-        <label class="switch-container">
-          <input type="checkbox" id="chk-show-cursor" checked />
-          <span class="switch-label">顯示眼動游標</span>
-        </label>
-        <label class="switch-container">
-          <input type="checkbox" id="chk-simulate-mouse" />
-          <span class="switch-label">使用滑鼠模擬眼動</span>
-        </label>
-      </div>
-    </div>
-
-    <!-- [點 4] 右上：操作教學說明 -->
-    <div id="widget-top-right" class="floating-widget top-right">
-      <button class="widget-close" data-point-idx="3">×</button>
-      <h4>⌨️ 小車手動操控說明</h4>
-      <div class="widget-content">
-        <p>請使用鍵盤進行移動控制：</p>
-        <ul>
-          <li><strong>W / S</strong> : 前進 / 後退</li>
-          <li><strong>A / D</strong> : 左自轉 / 右自轉</li>
-          <li><strong>Shift (按住)</strong> : 加速衝刺 (0.4 &rarr; 0.8)</li>
-          <li>放開按鍵即自動煞車停止</li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- [點 5] 左下：開發板連線狀態 -->
-    <div id="widget-bottom-left" class="floating-widget bottom-left">
-      <button class="widget-close" data-point-idx="4">×</button>
-      <h4>📡 開發板連線狀態</h4>
-      <div class="widget-content status-line">
-        <span class="status-indicator offline" id="board-indicator"></span>
-        <span id="board-status-text">連線檢查中...</span>
-      </div>
-    </div>
-
-    <!-- [點 6] 右下：系統控制日誌 -->
-    <div id="widget-bottom-right" class="floating-widget bottom-right">
-      <button class="widget-close" data-point-idx="5">×</button>
-      <h4>📋 系統控制日誌</h4>
-      <div class="widget-content">
-        <div class="log-console" id="log-box">載入日誌中...</div>
-      </div>
-    </div>
-
-    <!-- [點 7] 左中：左轉觸發提示 -->
-    <div id="widget-mid-left" class="floating-widget mid-left text-bubble">
-      <button class="widget-close" data-point-idx="6">×</button>
-      <div class="bubble-text">💡 提示：注視畫面的<strong>最左側區域</strong>，可直接遙控相機鏡頭向左旋轉。</div>
-    </div>
-
-    <!-- [點 8] 右中：右轉觸發提示 -->
-    <div id="widget-mid-right" class="floating-widget mid-right text-bubble">
-      <button class="widget-close" data-point-idx="7">×</button>
-      <div class="bubble-text">💡 提示：注視畫面的<strong>最右側區域</strong>，可直接遙控相機鏡頭向右旋轉。</div>
-    </div>
-
-    <!-- [點 9] 中央：曝光對焦提示 -->
-    <div id="widget-center" class="floating-widget center-widget text-bubble">
-      <button class="widget-close" data-point-idx="8">×</button>
-      <div class="bubble-text">🎯 提示：盯住畫面任何位置 <strong>3 秒</strong>，可發送 API 要求相機對該區進行自動曝光對焦。</div>
-    </div>
-
-    <!-- 眼動注視點游標 -->
-    <div id="gaze-cursor" class="gaze-dot hidden"></div>
-
-  </div>
-
-  <!-- 3. 校準與同步中遮罩 (隱藏微調時的等待) -->
-  <div id="loading-overlay" class="loading-overlay hidden">
+  <div id="loading-overlay" class="loading-overlay hidden" role="status" aria-live="polite">
     <div class="loading-box">
-      <div class="spinner"></div>
-      <h3 id="loading-title">正在連線至 OpenMV 開發板...</h3>
-      <p id="loading-desc">請稍候，正在同步小車通訊資料與微調模型參數...</p>
+      <div class="spinner" aria-hidden="true"></div>
+      <h2 id="loading-title">正在進行個人化微調</h2>
+      <p id="loading-desc">請稍候，系統正在整理剛才收集的影像。</p>
     </div>
   </div>
 
-  <!-- 連接 JavaScript 控制邏輯 -->
-  <script src="/static/app.js?v=car"></script>
+  <script src="/static/app.js?v=console-13"></script>
 </body>
 </html>

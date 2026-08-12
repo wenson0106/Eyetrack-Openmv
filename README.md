@@ -41,29 +41,6 @@
 
 統一建議使用 Python 3.11。請使用 64-bit Python，不要使用 Microsoft Store 的舊版 Python。
 
-### 快速安裝腳本
-
-先下載 Repo：
-
-```bash
-git clone https://github.com/wenson0106/Eyetrack-Openmv.git
-cd Eyetrack-Openmv
-```
-
-Windows PowerShell：
-
-```powershell
-.\scripts\setup_windows.ps1
-```
-
-Linux / macOS：
-
-```bash
-sh scripts/setup_unix.sh
-```
-
-若校園電腦禁止執行腳本，請使用下方的手動指令。
-
 ### Windows PowerShell
 
 ```powershell
@@ -77,7 +54,6 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe eye_server.py
 ```
 
-若電腦沒有 `py` 指令，但 `python --version` 顯示 3.11，可將 `py -3.11` 改成 `python`。
 
 ### Ubuntu / Debian Linux
 

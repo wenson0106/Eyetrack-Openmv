@@ -1,5 +1,5 @@
 {
-  "branch": "agent/head-motion-benchmark",
-  "method": "baseline",
-  "description": "Uncompensated UniGaze plus polynomial Ridge baseline"
+  "branch": "agent/metric-raycast",
+  "method": "metric_raycast",
+  "description": "Metric iris eye origin plus denormalized UniGaze ray and screen-plane intersection"
 }

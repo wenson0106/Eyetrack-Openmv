@@ -1,5 +1,5 @@
 {
-  "branch": "agent/head-motion-benchmark",
-  "method": "baseline",
-  "description": "Uncompensated UniGaze plus polynomial Ridge baseline"
+  "branch": "agent/head-proxy-compensation",
+  "method": "head_proxy",
+  "description": "Inter-eye-scale 3D origin estimate plus geometric screen-offset compensation"
 }

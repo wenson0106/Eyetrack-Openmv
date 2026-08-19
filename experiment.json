@@ -1,5 +1,5 @@
 {
-  "branch": "agent/head-motion-benchmark",
-  "method": "baseline",
-  "description": "Uncompensated UniGaze plus polynomial Ridge baseline"
+  "branch": "agent/iris-metric-compensation",
+  "method": "iris_metric",
+  "description": "MediaPipe iris metric depth plus geometric gaze-origin compensation"
 }

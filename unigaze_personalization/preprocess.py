@@ -30,6 +30,14 @@ class NormalizedFace:
     face_bbox: dict[str, float]
     head_pose_pitch_yaw: np.ndarray
     warp_matrix: np.ndarray
+    rotation_norm: np.ndarray
+    head_rvec_cam: np.ndarray
+    head_tvec_cam: np.ndarray
+    eye_midpoint_px: np.ndarray
+    eye_origin_proxy_cam_mm: np.ndarray
+    eye_origin_iris_cam_mm: np.ndarray
+    iris_depth_mm: float
+    camera_matrix: np.ndarray
 
 
 def _load_face_model() -> np.ndarray:
@@ -49,6 +57,63 @@ def _dummy_camera(image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     )
     distortion = np.zeros((1, 5), dtype=np.float64)
     return camera, distortion
+
+
+def _camera_from_frame(image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Build a fixed full-frame camera model.
+
+    The previous crop-relative camera scaled its focal length with the face crop,
+    which mathematically removed most lateral/depth motion.  A calibrated matrix
+    can be supplied through EYETRACK_CAMERA_FX/FY/CX/CY; otherwise a 60 degree
+    horizontal-FOV approximation is used as a device-level fallback.
+    """
+    height, width = image.shape[:2]
+    hfov = float(os.environ.get("EYETRACK_CAMERA_HFOV_DEG", "60"))
+    focal_default = width / (2.0 * np.tan(np.deg2rad(hfov) / 2.0))
+    fx = float(os.environ.get("EYETRACK_CAMERA_FX", focal_default))
+    fy = float(os.environ.get("EYETRACK_CAMERA_FY", focal_default))
+    cx = float(os.environ.get("EYETRACK_CAMERA_CX", width / 2.0))
+    cy = float(os.environ.get("EYETRACK_CAMERA_CY", height / 2.0))
+    camera = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=np.float64)
+    distortion = np.zeros((1, 5), dtype=np.float64)
+    return camera, distortion
+
+
+def _point_at_depth(pixel: np.ndarray, depth_mm: float, camera: np.ndarray) -> np.ndarray:
+    u, v = np.asarray(pixel, dtype=np.float64).reshape(2)
+    fx, fy = camera[0, 0], camera[1, 1]
+    cx, cy = camera[0, 2], camera[1, 2]
+    return np.array(
+        [(u - cx) * depth_mm / fx, (v - cy) * depth_mm / fy, depth_mm],
+        dtype=np.float64,
+    )
+
+
+def _eye_origins(landmarks: np.ndarray, camera: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    right_center = landmarks[468]
+    left_center = landmarks[473]
+    eye_midpoint = (right_center + left_center) * 0.5
+
+    iris_diameters = [
+        np.linalg.norm(landmarks[469] - landmarks[471]),
+        np.linalg.norm(landmarks[470] - landmarks[472]),
+        np.linalg.norm(landmarks[474] - landmarks[476]),
+        np.linalg.norm(landmarks[475] - landmarks[477]),
+    ]
+    # A larger inter-eye feature is less noisy than iris diameter and is useful
+    # as a relative-position baseline.  63 mm is a population prior, not a user
+    # calibration; only displacement from the calibration median is consumed.
+    eye_distance_px = max(float(np.linalg.norm(right_center - left_center)), 1.0)
+    proxy_depth = float(camera[0, 0] * 63.0 / eye_distance_px)
+    valid_iris_diameters = [value for value in iris_diameters if np.isfinite(value) and value > 0.5]
+    iris_depth = (
+        float(camera[0, 0] * 11.7 / np.median(valid_iris_diameters))
+        if valid_iris_diameters
+        else proxy_depth
+    )
+    proxy_origin = _point_at_depth(eye_midpoint, proxy_depth, camera)
+    iris_origin = _point_at_depth(eye_midpoint, iris_depth, camera)
+    return eye_midpoint, proxy_origin, iris_origin, iris_depth
 
 
 def _square_crop(image: np.ndarray, points: np.ndarray, scale: float) -> tuple[np.ndarray, dict[str, float], np.ndarray]:
@@ -217,26 +282,38 @@ class MediaPipeUniGazePreprocessor:
         landmarks_crop = landmarks - offset
         selected = np.array(
             [
-                landmarks_crop[MP_TO_DLIB_6["right_eye_outer"]],
-                landmarks_crop[MP_TO_DLIB_6["right_eye_inner"]],
-                landmarks_crop[MP_TO_DLIB_6["left_eye_inner"]],
-                landmarks_crop[MP_TO_DLIB_6["left_eye_outer"]],
-                landmarks_crop[MP_TO_DLIB_6["nose_right"]],
-                landmarks_crop[MP_TO_DLIB_6["nose_left"]],
+                landmarks[MP_TO_DLIB_6["right_eye_outer"]],
+                landmarks[MP_TO_DLIB_6["right_eye_inner"]],
+                landmarks[MP_TO_DLIB_6["left_eye_inner"]],
+                landmarks[MP_TO_DLIB_6["left_eye_outer"]],
+                landmarks[MP_TO_DLIB_6["nose_right"]],
+                landmarks[MP_TO_DLIB_6["nose_left"]],
             ],
             dtype=np.float32,
         )
-        camera, distortion = _dummy_camera(crop)
+        camera, distortion = _camera_from_frame(image_bgr)
         head_rvec, head_tvec = _estimate_head_pose(selected, self._face_model_6, camera, distortion)
         head_rotation = cv2.Rodrigues(head_rvec)[0]
         face_center = _face_center_by_nose(head_rotation, head_tvec, self._face_model)
         normalized_bgr, warp, head_rotation_norm = _normalize_face(
-            crop,
-            landmarks_crop,
+            image_bgr,
+            landmarks,
             face_center,
             head_rvec,
             camera,
         )
+        # Recompute the normalization rotation explicitly; the perspective warp
+        # also contains scale/intrinsics and cannot be used to denormalize gaze.
+        center = face_center.reshape(3)
+        distance = np.linalg.norm(center)
+        head_x = head_rotation[:, 0]
+        forward = center / distance
+        down = np.cross(forward, head_x)
+        down /= np.linalg.norm(down)
+        right = np.cross(down, forward)
+        right /= np.linalg.norm(right)
+        rotation_norm = np.c_[right, down, forward].T
+        eye_midpoint, proxy_origin, iris_origin, iris_depth = _eye_origins(landmarks, camera)
         normalized_rgb = cv2.cvtColor(normalized_bgr, cv2.COLOR_BGR2RGB)
         return NormalizedFace(
             image_rgb=normalized_rgb,
@@ -247,4 +324,12 @@ class MediaPipeUniGazePreprocessor:
             face_bbox=bbox,
             head_pose_pitch_yaw=_head_pose_pitch_yaw(head_rotation_norm),
             warp_matrix=warp,
+            rotation_norm=rotation_norm.astype(np.float32),
+            head_rvec_cam=head_rvec.reshape(3).astype(np.float32),
+            head_tvec_cam=head_tvec.reshape(3).astype(np.float32),
+            eye_midpoint_px=eye_midpoint.astype(np.float32),
+            eye_origin_proxy_cam_mm=proxy_origin.astype(np.float32),
+            eye_origin_iris_cam_mm=iris_origin.astype(np.float32),
+            iris_depth_mm=iris_depth,
+            camera_matrix=camera.astype(np.float32),
         )

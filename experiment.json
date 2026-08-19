@@ -1,0 +1,5 @@
+{
+  "branch": "agent/head-motion-benchmark",
+  "method": "baseline",
+  "description": "Uncompensated UniGaze plus polynomial Ridge baseline"
+}

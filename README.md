@@ -1,5 +1,7 @@
 # Eyetrack OpenMV 教學系統
 
+> Head-motion robustness experiments: see [HUMAN_TESTING.md](HUMAN_TESTING.md). Every experiment branch provides a standalone quantitative runner at `http://127.0.0.1:8000/benchmark`; it does not require OpenMV hardware.
+
 此 Repo 包含：
 
 - 電腦端眼動控制前端與 FastAPI 後端

@@ -19,6 +19,13 @@ import torch
 from unigaze_personalization.preprocess import MediaPipeUniGazePreprocessor
 from unigaze_personalization.transforms import to_unigaze_tensor
 from unigaze_personalization.model import UniGazeFeatureWrapper, load_unigaze_b16
+from unigaze_personalization.tracking_geometry import (
+    ScreenGeometry,
+    apply_method,
+    denormalize_gaze,
+    experiment_config,
+    intersect_screen,
+)
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -30,6 +37,8 @@ from starlette.websockets import WebSocketState
 # Define directories
 DATA_DIR = WORKSPACE_DIR / "data" / "sessions"
 RUNS_DIR = WORKSPACE_DIR / "runs"
+EXPERIMENT = experiment_config(WORKSPACE_DIR)
+SCREEN_GEOMETRY = ScreenGeometry.from_env()
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 RUNS_DIR.mkdir(parents=True, exist_ok=True)
@@ -188,8 +197,9 @@ def get_calib_model(name: str):
     try:
         with path.open("r", encoding="utf-8") as f:
             data = json.load(f)
-        if isinstance(data.get("W"), list):
-            data["W"] = np.asarray(data["W"], dtype=np.float32)
+        for key in ("W", "W_raycast"):
+            if isinstance(data.get(key), list):
+                data[key] = np.asarray(data[key], dtype=np.float32)
         for stage in data.get("stages", []):
             if isinstance(stage.get("W"), list):
                 stage["W"] = np.asarray(stage["W"], dtype=np.float32)
@@ -264,6 +274,24 @@ def _decode_binary_image(raw: bytes) -> np.ndarray:
 @app.get("/")
 def index():
     return FileResponse(static_dir / "index.html")
+
+
+@app.get("/benchmark")
+def benchmark():
+    return FileResponse(static_dir / "benchmark.html")
+
+
+@app.get("/api/experiment")
+def experiment_info():
+    return {
+        **EXPERIMENT,
+        "screen": {
+            "width_mm": SCREEN_GEOMETRY.width_mm,
+            "height_mm": SCREEN_GEOMETRY.height_mm,
+            "camera_to_top_mm": SCREEN_GEOMETRY.camera_to_top_mm,
+            "plane_z_mm": SCREEN_GEOMETRY.plane_z_mm,
+        },
+    }
 
 @app.get("/api/board_status")
 def board_status():
@@ -476,7 +504,15 @@ def add_sample(request: SampleRequest):
             "crop_path": str(crop_path.relative_to(session_dir)),
             "normalized_face_path": str(norm_path.relative_to(session_dir)),
             "head_pose_pitch_yaw": processed.head_pose_pitch_yaw.tolist(),
-            "face_bbox": processed.face_bbox
+            "face_bbox": processed.face_bbox,
+            "rotation_norm": processed.rotation_norm.tolist(),
+            "head_rvec_cam": processed.head_rvec_cam.tolist(),
+            "head_tvec_cam": processed.head_tvec_cam.tolist(),
+            "eye_midpoint_px": processed.eye_midpoint_px.tolist(),
+            "eye_origin_proxy_cam_mm": processed.eye_origin_proxy_cam_mm.tolist(),
+            "eye_origin_iris_cam_mm": processed.eye_origin_iris_cam_mm.tolist(),
+            "iris_depth_mm": processed.iris_depth_mm,
+            "camera_matrix": processed.camera_matrix.tolist(),
         })
     else:
         record["ok"] = False
@@ -511,6 +547,7 @@ def train_session(request: TrainRequest):
 
         gaze_list = []
         target_list = []
+        usable_records = []
         
         for record in records:
             if not record.get("ok"):
@@ -532,6 +569,7 @@ def train_session(request: TrainRequest):
                 
             gaze_list.append(gaze_vec)
             target_list.append([record["target_x_norm"], record["target_y_norm"]])
+            usable_records.append(record)
 
         N = len(gaze_list)
         if N < 6:
@@ -559,25 +597,69 @@ def train_session(request: TrainRequest):
         pred_Y = X @ W
         errors = []
         for i in range(N):
-            pred_x_px = (pred_Y[i, 0] + 1.0) * 0.5 * 1920.0
-            pred_y_px = (pred_Y[i, 1] + 1.0) * 0.5 * 1080.0
-            target_x_px = (Y[i, 0] + 1.0) * 0.5 * 1920.0
-            target_y_px = (Y[i, 1] + 1.0) * 0.5 * 1080.0
+            viewport_width = float(usable_records[i].get("viewport_width", 1920.0))
+            viewport_height = float(usable_records[i].get("viewport_height", 1080.0))
+            pred_x_px = (pred_Y[i, 0] + 1.0) * 0.5 * viewport_width
+            pred_y_px = (pred_Y[i, 1] + 1.0) * 0.5 * viewport_height
+            target_x_px = (Y[i, 0] + 1.0) * 0.5 * viewport_width
+            target_y_px = (Y[i, 1] + 1.0) * 0.5 * viewport_height
             errors.append(np.sqrt((pred_x_px - target_x_px)**2 + (pred_y_px - target_y_px)**2))
         
         mean_error = float(np.mean(errors))
         
+        proxy_origins = [record.get("eye_origin_proxy_cam_mm") for record in usable_records]
+        iris_origins = [record.get("eye_origin_iris_cam_mm") for record in usable_records]
         calibration_data = {
             "W": W.tolist(),
             "mean_px_error": mean_error,
-            "train_samples": N
+            "train_samples": N,
+            "method": EXPERIMENT["method"],
+            "baseline_eye_origin_proxy_cam_mm": np.median(np.asarray(proxy_origins), axis=0).tolist(),
+            "baseline_eye_origin_iris_cam_mm": np.median(np.asarray(iris_origins), axis=0).tolist(),
+            "screen": {
+                "width_mm": SCREEN_GEOMETRY.width_mm,
+                "height_mm": SCREEN_GEOMETRY.height_mm,
+                "camera_to_top_mm": SCREEN_GEOMETRY.camera_to_top_mm,
+                "plane_z_mm": SCREEN_GEOMETRY.plane_z_mm,
+            },
         }
+
+        # Fit only a 2D affine residual after physical ray/screen projection.
+        # The calibration head position is fixed; runtime head translation is
+        # handled by moving the ray origin, not by learning extra head poses.
+        raycast_inputs = []
+        raycast_targets = []
+        for gaze_vec, target, record in zip(gaze_list, target_list, usable_records):
+            try:
+                direction = denormalize_gaze(gaze_vec, record["rotation_norm"])
+                origin = np.asarray(record["eye_origin_iris_cam_mm"], dtype=np.float64)
+                hit = intersect_screen(origin, direction, SCREEN_GEOMETRY)
+                hit_norm = SCREEN_GEOMETRY.camera_to_norm(hit)
+                raycast_inputs.append([hit_norm[0], hit_norm[1], 1.0])
+                raycast_targets.append(target)
+            except (KeyError, ValueError):
+                continue
+        if len(raycast_inputs) >= 6:
+            ray_X = np.asarray(raycast_inputs, dtype=np.float64)
+            ray_Y = np.asarray(raycast_targets, dtype=np.float64)
+            ray_alpha = 1e-4
+            ray_W = np.linalg.solve(
+                ray_X.T @ ray_X + ray_alpha * np.eye(ray_X.shape[1]),
+                ray_X.T @ ray_Y,
+            )
+            calibration_data["W_raycast"] = ray_W.tolist()
         
         model_path = RUNS_DIR / f"{request.output_model_name}.json"
         with model_path.open("w", encoding="utf-8") as f:
             json.dump(calibration_data, f, indent=2)
             
-        return {"ok": True, "best_val_px_error": mean_error, "train_samples": N}
+        return {
+            "ok": True,
+            "best_val_px_error": mean_error,
+            "train_samples": N,
+            "method": EXPERIMENT["method"],
+            "raycast_ready": "W_raycast" in calibration_data,
+        }
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -593,7 +675,16 @@ def _predict_gaze_frame(raw_bytes, model_name, model_data, model, device):
     image_tensor = to_unigaze_tensor(processed.image_rgb).unsqueeze(0).to(device)
     with torch.no_grad():
         gaze = model(image_tensor).squeeze(0).cpu().tolist()  # [pitch, yaw]
-    pred_xy = _apply_calibration(gaze, model_name, model_data)
+    calibrated_xy = _apply_calibration(gaze, model_name, model_data)
+    pred_xy, method_debug = apply_method(
+        EXPERIMENT["method"],
+        gaze,
+        calibrated_xy,
+        processed,
+        model_data,
+        SCREEN_GEOMETRY,
+    )
+    pred_xy = [_clamp_norm(pred_xy[0]), _clamp_norm(pred_xy[1])]
 
     return {
         "ok": True,
@@ -601,6 +692,11 @@ def _predict_gaze_frame(raw_bytes, model_name, model_data, model, device):
         "gaze_pitch_yaw": gaze,
         "head_pose_pitch_yaw": processed.head_pose_pitch_yaw.tolist(),
         "face_bbox": processed.face_bbox,
+        "tracking_method": EXPERIMENT["method"],
+        "eye_origin_proxy_cam_mm": processed.eye_origin_proxy_cam_mm.tolist(),
+        "eye_origin_iris_cam_mm": processed.eye_origin_iris_cam_mm.tolist(),
+        "iris_depth_mm": processed.iris_depth_mm,
+        "method_debug": method_debug,
         "inference_ms": round((time.perf_counter() - started_at) * 1000.0, 2),
     }
 

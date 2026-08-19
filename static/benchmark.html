@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Webcam Eye Tracking Head-Motion Benchmark</title>
+  <link rel="stylesheet" href="/static/benchmark.css">
+</head>
+<body>
+  <video id="camera" autoplay playsinline muted></video>
+  <canvas id="capture" width="1280" height="720" hidden></canvas>
+  <div id="target" aria-hidden="true"></div>
+
+  <aside class="panel">
+    <p class="kicker">HEAD-MOTION BENCHMARK</p>
+    <h1>Webcam 眼動精準度測試</h1>
+    <p id="method">讀取實驗方法…</p>
+
+    <label>受試者代碼 <input id="participant" value="P001"></label>
+    <label>攝影機 <select id="cameraSelect"></select></label>
+    <label>眼睛到螢幕距離（mm）<input id="viewingDistance" type="number" min="300" max="1200" value="600"></label>
+    <label>測試頭位
+      <select id="condition">
+        <option value="center">中央／校正姿勢</option>
+        <option value="left_10cm">向左平移 10 cm</option>
+        <option value="right_10cm">向右平移 10 cm</option>
+        <option value="near_10cm">向前 10 cm</option>
+        <option value="far_10cm">向後 10 cm</option>
+        <option value="free_motion">自然連續移動</option>
+      </select>
+    </label>
+
+    <div class="actions">
+      <button id="calibrate">開始固定頭部 9 點校正</button>
+      <button id="test" disabled>開始此頭位測試</button>
+    </div>
+    <p id="status" class="status">請先允許攝影機權限。校正期間保持正常中央坐姿。</p>
+
+    <div class="metrics">
+      <div><span>有效樣本</span><strong id="sampleCount">0</strong></div>
+      <div><span>平均誤差</span><strong id="meanError">—</strong></div>
+      <div><span>P95 誤差</span><strong id="p95Error">—</strong></div>
+    </div>
+
+    <div class="actions secondary">
+      <button id="exportJson" disabled>匯出 JSON</button>
+      <button id="exportCsv" disabled>匯出 CSV</button>
+    </div>
+    <table>
+      <thead><tr><th>條件</th><th>N</th><th>Mean °</th><th>P95 °</th></tr></thead>
+      <tbody id="results"></tbody>
+    </table>
+  </aside>
+
+  <script src="/static/benchmark.js"></script>
+</body>
+</html>
